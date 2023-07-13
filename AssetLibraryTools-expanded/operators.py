@@ -1,16 +1,3 @@
-bl_info = {
-    "name": "AssetLibraryTools",
-    "description": "AssetLibraryTools is a free addon which aims to speed up the process of creating asset libraries with the asset browser, This addon is currently very much experimental as is the asset browser in blender.",
-    "author": "Lucian James (LJ3D)",
-    "version": (0, 2, 2),
-    "blender": (3, 0, 0),
-    "location": "3D View > Tools",
-    "warning": "Developed in 3.0, primarily the alpha. May be unstable or broken in future versions", # used for warning icon and text in addons panel
-    "wiki_url": "https://github.com/LJ3D/AssetLibraryTools/wiki",
-    "tracker_url": "https://github.com/LJ3D/AssetLibraryTools",
-    "category": "3D View"
-}
-
 import bpy
 from bpy.props import (StringProperty,
                        BoolProperty,
@@ -25,13 +12,21 @@ from bpy.types import (Panel,
                        Operator,
                        PropertyGroup,
                        )
+
 import pathlib
 import re
 import os
 import time
 import random
-
-
+from bpy_extras.io_utils import ImportHelper, ExportHelper
+from bpy_extras.node_utils import connect_sockets
+from mathutils import Vector
+from os import path
+from glob import glob
+from copy import copy
+from itertools import chain
+import preferences
+import interface
 # ------------------------------------------------------------------------
 #    Stuff
 # ------------------------------------------------------------------------ 
@@ -243,6 +238,7 @@ class shaderSetup():
 
 # This code is bad!!!!
 # But i dont want to fix it!!!!
+# And neither do I!  /Ivarss
 def listDownloadAttribs(scene, context):
     scene = context.scene
     tool = scene.assetlibrarytools
@@ -255,366 +251,6 @@ def listDownloadAttribs(scene, context):
         items.append((a, a, ""))
     return items
 
-
-# ------------------------------------------------------------------------
-#    Properties
-# ------------------------------------------------------------------------ 
-
-class properties(PropertyGroup):
-    
-    # Material import properties
-    mat_import_path : StringProperty(
-        name = "Import directory",
-        description = "Choose a directory to batch import PBR texture sets from.\nFormat your files like this: ChosenDirectory/PBRTextureName/textureFiles",
-        default = "",
-        maxlen = 1024,
-        subtype = 'DIR_PATH'
-        )
-    skip_existing : BoolProperty(
-        name = "Skip existing",
-        description = "Dont import materials if a material with the same name already exists",
-        default = True
-        )
-    tex_ignore_filter : StringProperty(
-        name = "Tex name filter",
-        description = "Filter unwanted textures by a common string in the name (such as DX, which denotes a directX normal map)",
-        default = "",
-        maxlen = 1024,
-        )
-    use_fake_user : BoolProperty(
-        name = "Use fake user",
-        description = "Use fake user on imported materials",
-        default = True
-        )
-    use_real_displacement : BoolProperty(
-        name = "Use real displacement",
-        description = "Enable real geometry displacement in the material settings (cycles only)",
-        default = False
-        )
-    add_extranodes : BoolProperty(
-        name = "Add utility nodes",
-        description = "Adds nodes to the imported materials for easy control",
-        default = False
-        )
-    texture_mapping : EnumProperty(
-        name='Mapping',
-        default='UV',
-        items=[('UV', 'UV', 'Use UVs to control mapping'),
-        ('Object', 'Object', 'Wrap texture along world coords')])
-    import_diff : BoolProperty(
-        name = "Import diffuse",
-        description = "",
-        default = True
-        )
-    import_sss : BoolProperty(
-        name = "Import SSS",
-        description = "",
-        default = True
-        )
-    import_met : BoolProperty(
-        name = "Import metallic",
-        description = "",
-        default = True
-        )
-    import_spec : BoolProperty(
-        name = "Import specularity",
-        description = "",
-        default = True
-        )   
-    import_rough : BoolProperty(
-        name = "Import roughness",
-        description = "",
-        default = True
-        )
-    import_emission : BoolProperty(
-        name = "Import emission",
-        description = "",
-        default = True
-        )
-    import_alpha : BoolProperty(
-        name = "Import alpha",
-        description = "",
-        default = True
-        )
-    import_norm : BoolProperty(
-        name = "Import normal",
-        description = "",
-        default = True
-        )
-    import_disp : BoolProperty(
-        name = "Import displacement",
-        description = "",
-        default = True
-        )
-    
-    
-    # Model import properties
-    model_import_path : StringProperty(
-        name = "Import directory",
-        description = "Choose a directory to batch import models from.\nSubdirectories are checked recursively",
-        default = "",
-        maxlen = 1024,
-        subtype = 'DIR_PATH'
-        )
-    hide_after_import : BoolProperty(
-        name = "Hide models after import",
-        description = "Reduces viewport polycount, prevents low framerate/crashes.\nHides each model individually straight after import",
-        default = False
-        )
-    move_to_new_collection_after_import : BoolProperty(
-        name = "Move models to new collection after import",
-        description = "",
-        default = False
-        )
-    join_new_objects : BoolProperty(
-        name = "Join all models in each file together after import",
-        description = "",
-        default = False
-        )
-    import_fbx : BoolProperty(
-        name = "Import FBX files",
-        description = "",
-        default = True
-        )
-    import_gltf : BoolProperty(
-        name = "Import GLTF files",
-        description = "",
-        default = True
-        )
-    import_obj : BoolProperty(
-        name = "Import OBJ files",
-        description = "",
-        default = True
-        )
-    import_x3d : BoolProperty(
-        name = "Import X3D files",
-        description = "",
-        default = True
-        )
-        
-        
-    # Batch append properties
-    append_path : StringProperty(
-        name = "Import directory",
-        description = "Choose a directory to batch append from.",
-        default = "",
-        maxlen = 1024,
-        subtype = 'DIR_PATH'
-        )
-    append_recursive_search : BoolProperty(
-        name = "Search for .blend files in subdirs recursively",
-        description = "",
-        default = False
-        )
-    append_move_to_new_collection_after_import : BoolProperty(
-        name = "Move objects to new collection after import",
-        description = "",
-        default = False
-        )
-    append_join_new_objects : BoolProperty(
-        name = "Join all objects in each file together after import",
-        description = "",
-        default = False
-        )
-    appendType : EnumProperty(
-        name="Append",
-        description="Choose type to append",
-        items=[ ('objects', "Objects", ""),
-                ('materials', "Materials", ""),
-                ]
-        )
-    deleteLights : BoolProperty(
-        name = "Dont append lights",
-        description = "",
-        default = True
-        )
-    deleteCameras : BoolProperty(
-        name = "Dont append cameras",
-        description = "",
-        default = True
-        )
-    
-    
-    # Asset management properties
-    markunmark : EnumProperty(
-        name="Operation",
-        description="Choose whether to mark assets, or unmark assets",
-        items=[ ('mark', "Mark assets", ""),
-                ('unmark', "Unmark assets", ""),
-               ]
-        )
-    assettype : EnumProperty(
-        name="On type",
-        description="Choose a type of asset to mark/unmark",
-        items=[ ('objects', "Objects", ""),
-                ('materials', "Materials", ""),
-                ('images', "Images", ""),
-                ('textures', "Textures", ""),
-                ('meshes', "Meshes", ""),
-               ]
-        )
-    previewgentype : EnumProperty(
-        name="Asset type",
-        description="Choose a type of asset to mark/unmark",
-        items=[ ('objects', "Objects", ""),
-                ('materials', "Materials", ""),
-                ('images', "Images", ""),
-                ('textures', "Textures", ""),
-                ('meshes', "Meshes", ""),
-               ]
-        )
-    
-    
-    # Utilities panel properties
-    deleteType : EnumProperty(
-        name="Delete all",
-        description="Choose type to batch delete",
-        items=[ ('objects', "Objects", ""),
-                ('materials', "Materials", ""),
-                ('images', "Images", ""),
-                ('textures', "Textures", ""),
-                ('meshes', "Meshes", ""),
-               ]
-        )
-    dispNewScale: FloatProperty(
-        name = "New Displacement Scale",
-        description = "A float property",
-        default = 0.1,
-        min = 0.0001
-        )
-    
-    
-    # Asset snapshot panel properties
-    resolution : IntProperty(
-            name="Preview Resolution",
-            description="Resolution to render the preview",
-            min=1,
-            soft_max=500,
-            default=256
-            )
-    
-    
-    # CC0AssetDownloader properties
-    downloader_save_path : StringProperty(
-        name = "Save location",
-        description = "Choose a directory to save assets to",
-        default = "",
-        maxlen = 1024,
-        subtype = 'DIR_PATH'
-        )
-    keywordFilter : StringProperty(
-        name = "Keyword filter",
-        description = "Enter a keyword to filter assets by, leave empty if you do not wish to filter.",
-        default = "",
-        maxlen = 1024,
-        )
-    showAllDownloadAttribs: BoolProperty(
-        name = "Show all download attributes",
-        description = "",
-        default = True
-        )
-    attributeFilter : EnumProperty(
-        name="Attribute filter",
-        description="Choose attribute to filter assets by",
-        items=listDownloadAttribs
-        )
-    extensionFilter : EnumProperty(
-        name="Extension filter",
-        description="Choose file extension to filter assets by",
-        items=[ ('None', "None", ""),
-                ('zip', "ZIP", ""),
-                ('obj', "OBJ", ""),
-                ('exr', "EXR", ""),
-                ('sbsar', "SBSAR", ""),
-               ]
-        )
-    unZip : BoolProperty(
-        name = "Unzip downloaded zip files",
-        description = "",
-        default = True
-        )
-    deleteZips : BoolProperty(
-        name = "Delete zip files after they have been unzipped",
-        description = "",
-        default = True
-        )
-    skipDuplicates : BoolProperty(
-        name = "Dont download files which already exist",
-        description = "",
-        default = True
-        )
-    terminal : EnumProperty(
-        name="Terminal",
-        description="Choose terminal to run script with",
-        items=[ ('cmd', "cmd", ""),
-                ('gnome-terminal', "gnome-terminal", ""),
-                ('konsole', 'konsole', ""),
-                ('xterm', 'xterm', ""),
-               ]
-        )
-    
-    
-    # SBSAR import properties
-    sbsar_import_path : StringProperty(
-        name = "Import directory",
-        description = "Choose a directory to batch import sbsar files from.\nSubdirectories are checked recursively",
-        default = "",
-        maxlen = 1024,
-        subtype = 'DIR_PATH'
-        )
-    
-    
-    # UI properties
-    matImport_expanded : BoolProperty(
-        name = "Click to expand",
-        description = "",
-        default = False
-        )
-    matImportOptions_expanded : BoolProperty(
-        name = "Click to expand",
-        description = "",
-        default = False
-        )
-    append_expanded : BoolProperty(
-        name = "Click to expand",
-        description = "",
-        default = False
-        )
-    modelImport_expanded : BoolProperty(
-        name = "Click to expand",
-        description = "",
-        default = False
-        )
-    modelImportOptions_expanded : BoolProperty(
-        name = "Click to expand",
-        description = "",
-        default = False
-        )
-    assetBrowserOpsRow_expanded : BoolProperty(
-        name = "Click to expand",
-        description = "",
-        default = False
-        )
-    utilRow_expanded : BoolProperty(
-        name = "Click to expand",
-        description = "",
-        default = False
-        )
-    snapshotRow_expanded : BoolProperty(
-        name = "Click to expand",
-        description = "",
-        default = False
-        )
-    assetDownloaderRow_expanded : BoolProperty(
-        name = "Click to expand",
-        description = "",
-        default = False
-        )
-    sbsarImport_expanded : BoolProperty(
-        name = "Click to expand",
-        description = "",
-        default = False
-        )
 
 # ------------------------------------------------------------------------
 #    Operators
@@ -670,6 +306,270 @@ class OT_BatchImportPBR(Operator):
         else:
             DisplayMessageBox("Complete, {0} materials imported".format(n_imp))
         return{'FINISHED'}
+
+class NWAddPrincipledSetup(Operator, NWBase, ImportHelper):
+    bl_idname = "node.nw_add_textures_for_principled"
+    bl_label = "Principled Texture Setup"
+    bl_description = "Add Texture Node Setup for Principled BSDF"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    directory: StringProperty(
+        name='Directory',
+        subtype='DIR_PATH',
+        default='',
+        description='Folder to search in for image files'
+    )
+    files: CollectionProperty(
+        type=bpy.types.OperatorFileListElement,
+        options={'HIDDEN', 'SKIP_SAVE'}
+    )
+
+    relative_path: BoolProperty(
+        name='Relative Path',
+        description='Set the file path relative to the blend file, when possible',
+        default=True
+    )
+
+    order = [
+        "filepath",
+        "files",
+    ]
+
+    def draw(self, context):
+        layout = self.layout
+        layout.alignment = 'LEFT'
+
+        layout.prop(self, 'relative_path')
+
+    @classmethod
+    def poll(cls, context):
+        valid = False
+        if nw_check(context):
+            space = context.space_data
+            if space.tree_type == 'ShaderNodeTree':
+                valid = True
+        return valid
+
+    def execute(self, context):
+        # Check if everything is ok
+        if not self.directory:
+            self.report({'INFO'}, 'No Folder Selected')
+            return {'CANCELLED'}
+        if not self.files[:]:
+            self.report({'INFO'}, 'No Files Selected')
+            return {'CANCELLED'}
+
+        nodes, links = get_nodes_links(context)
+        active_node = nodes.active
+        if not (active_node and active_node.bl_idname == 'ShaderNodeBsdfPrincipled'):
+            self.report({'INFO'}, 'Select Principled BSDF')
+            return {'CANCELLED'}
+
+        # Filter textures names for texturetypes in filenames
+        # [Socket Name, [abbreviations and keyword list], Filename placeholder]
+        tags = context.preferences.addons[__package__].preferences.principled_tags
+        normal_abbr = tags.normal.split(' ')
+        bump_abbr = tags.bump.split(' ')
+        gloss_abbr = tags.gloss.split(' ')
+        rough_abbr = tags.rough.split(' ')
+        socketnames = [
+            ['Displacement', tags.displacement.split(' '), None],
+            ['Base Color', tags.base_color.split(' '), None],
+            ['Subsurface Color', tags.sss_color.split(' '), None],
+            ['Metallic', tags.metallic.split(' '), None],
+            ['Specular', tags.specular.split(' '), None],
+            ['Roughness', rough_abbr + gloss_abbr, None],
+            ['Normal', normal_abbr + bump_abbr, None],
+            ['Transmission', tags.transmission.split(' '), None],
+            ['Emission', tags.emission.split(' '), None],
+            ['Alpha', tags.alpha.split(' '), None],
+            ['Ambient Occlusion', tags.ambient_occlusion.split(' '), None],
+        ]
+
+        match_files_to_socket_names(self.files, socketnames)
+        # Remove socketnames without found files
+        socketnames = [s for s in socketnames if s[2]
+                       and path.exists(self.directory + s[2])]
+        if not socketnames:
+            self.report({'INFO'}, 'No matching images found')
+            print('No matching images found')
+            return {'CANCELLED'}
+
+        # Don't override path earlier as os.path is used to check the absolute path
+        import_path = self.directory
+        if self.relative_path:
+            if bpy.data.filepath:
+                try:
+                    import_path = bpy.path.relpath(self.directory)
+                except ValueError:
+                    pass
+
+        # Add found images
+        print('\nMatched Textures:')
+        texture_nodes = []
+        disp_texture = None
+        ao_texture = None
+        normal_node = None
+        roughness_node = None
+        for i, sname in enumerate(socketnames):
+            print(i, sname[0], sname[2])
+
+            # DISPLACEMENT NODES
+            if sname[0] == 'Displacement':
+                disp_texture = nodes.new(type='ShaderNodeTexImage')
+                img = bpy.data.images.load(path.join(import_path, sname[2]))
+                disp_texture.image = img
+                disp_texture.label = 'Displacement'
+                if disp_texture.image:
+                    disp_texture.image.colorspace_settings.is_data = True
+
+                # Add displacement offset nodes
+                disp_node = nodes.new(type='ShaderNodeDisplacement')
+                # Align the Displacement node under the active Principled BSDF node
+                disp_node.location = active_node.location + Vector((100, -700))
+                link = connect_sockets(disp_node.inputs[0], disp_texture.outputs[0])
+
+                # TODO Turn on true displacement in the material
+                # Too complicated for now
+
+                # Find output node
+                output_node = [n for n in nodes if n.bl_idname == 'ShaderNodeOutputMaterial']
+                if output_node:
+                    if not output_node[0].inputs[2].is_linked:
+                        link = connect_sockets(output_node[0].inputs[2], disp_node.outputs[0])
+
+                continue
+
+            # AMBIENT OCCLUSION TEXTURE
+            if sname[0] == 'Ambient Occlusion':
+                ao_texture = nodes.new(type='ShaderNodeTexImage')
+                img = bpy.data.images.load(path.join(import_path, sname[2]))
+                ao_texture.image = img
+                ao_texture.label = sname[0]
+                if ao_texture.image:
+                    ao_texture.image.colorspace_settings.is_data = True
+
+                continue
+
+            if not active_node.inputs[sname[0]].is_linked:
+                # No texture node connected -> add texture node with new image
+                texture_node = nodes.new(type='ShaderNodeTexImage')
+                img = bpy.data.images.load(path.join(import_path, sname[2]))
+                texture_node.image = img
+
+                # NORMAL NODES
+                if sname[0] == 'Normal':
+                    # Test if new texture node is normal or bump map
+                    fname_components = split_into_components(sname[2])
+                    match_normal = set(normal_abbr).intersection(set(fname_components))
+                    match_bump = set(bump_abbr).intersection(set(fname_components))
+                    if match_normal:
+                        # If Normal add normal node in between
+                        normal_node = nodes.new(type='ShaderNodeNormalMap')
+                        link = connect_sockets(normal_node.inputs[1], texture_node.outputs[0])
+                    elif match_bump:
+                        # If Bump add bump node in between
+                        normal_node = nodes.new(type='ShaderNodeBump')
+                        link = connect_sockets(normal_node.inputs[2], texture_node.outputs[0])
+
+                    link = connect_sockets(active_node.inputs[sname[0]], normal_node.outputs[0])
+                    normal_node_texture = texture_node
+
+                elif sname[0] == 'Roughness':
+                    # Test if glossy or roughness map
+                    fname_components = split_into_components(sname[2])
+                    match_rough = set(rough_abbr).intersection(set(fname_components))
+                    match_gloss = set(gloss_abbr).intersection(set(fname_components))
+
+                    if match_rough:
+                        # If Roughness nothing to to
+                        link = connect_sockets(active_node.inputs[sname[0]], texture_node.outputs[0])
+
+                    elif match_gloss:
+                        # If Gloss Map add invert node
+                        invert_node = nodes.new(type='ShaderNodeInvert')
+                        link = connect_sockets(invert_node.inputs[1], texture_node.outputs[0])
+
+                        link = connect_sockets(active_node.inputs[sname[0]], invert_node.outputs[0])
+                        roughness_node = texture_node
+
+                else:
+                    # This is a simple connection Texture --> Input slot
+                    link = connect_sockets(active_node.inputs[sname[0]], texture_node.outputs[0])
+
+                # Use non-color for all but 'Base Color' Textures
+                if not sname[0] in ['Base Color', 'Emission'] and texture_node.image:
+                    texture_node.image.colorspace_settings.is_data = True
+
+            else:
+                # If already texture connected. add to node list for alignment
+                texture_node = active_node.inputs[sname[0]].links[0].from_node
+
+            # This are all connected texture nodes
+            texture_nodes.append(texture_node)
+            texture_node.label = sname[0]
+
+        if disp_texture:
+            texture_nodes.append(disp_texture)
+
+        if ao_texture:
+            # We want the ambient occlusion texture to be the top most texture node
+            texture_nodes.insert(0, ao_texture)
+
+        # Alignment
+        for i, texture_node in enumerate(texture_nodes):
+            offset = Vector((-550, (i * -280) + 200))
+            texture_node.location = active_node.location + offset
+
+        if normal_node:
+            # Extra alignment if normal node was added
+            normal_node.location = normal_node_texture.location + Vector((300, 0))
+
+        if roughness_node:
+            # Alignment of invert node if glossy map
+            invert_node.location = roughness_node.location + Vector((300, 0))
+
+        # Add texture input + mapping
+        mapping = nodes.new(type='ShaderNodeMapping')
+        mapping.location = active_node.location + Vector((-1050, 0))
+        if len(texture_nodes) > 1:
+            # If more than one texture add reroute node in between
+            reroute = nodes.new(type='NodeReroute')
+            texture_nodes.append(reroute)
+            tex_coords = Vector((texture_nodes[0].location.x,
+                                 sum(n.location.y for n in texture_nodes) / len(texture_nodes)))
+            reroute.location = tex_coords + Vector((-50, -120))
+            for texture_node in texture_nodes:
+                link = connect_sockets(texture_node.inputs[0], reroute.outputs[0])
+            link = connect_sockets(reroute.inputs[0], mapping.outputs[0])
+        else:
+            link = connect_sockets(texture_nodes[0].inputs[0], mapping.outputs[0])
+
+        # Connect texture_coordiantes to mapping node
+        texture_input = nodes.new(type='ShaderNodeTexCoord')
+        texture_input.location = mapping.location + Vector((-200, 0))
+        link = connect_sockets(mapping.inputs[0], texture_input.outputs[2])
+
+        # Create frame around tex coords and mapping
+        frame = nodes.new(type='NodeFrame')
+        frame.label = 'Mapping'
+        mapping.parent = frame
+        texture_input.parent = frame
+        frame.update()
+
+        # Create frame around texture nodes
+        frame = nodes.new(type='NodeFrame')
+        frame.label = 'Textures'
+        for tnode in texture_nodes:
+            tnode.parent = frame
+        frame.update()
+
+        # Just to be sure
+        active_node.select = False
+        nodes.update()
+        links.update()
+        force_update(context)
+        return {'FINISHED'}
 
 
 class OT_ImportModels(Operator):
@@ -1131,223 +1031,10 @@ class OT_ImportSBSAR(Operator):
 
 
 # ------------------------------------------------------------------------
-#    UI
-# ------------------------------------------------------------------------
-
-class OBJECT_PT_panel(Panel):
-    bl_label = "AssetLibraryTools"
-    bl_idname = "OBJECT_PT_assetlibrarytools_panel"
-    bl_category = "AssetLibraryTools"
-    bl_space_type = "VIEW_3D"   
-    bl_region_type = "UI"
-    
-    @classmethod
-    def poll(self,context):
-        return context.mode
-
-    def draw(self, context):
-        layout = self.layout
-        scene = context.scene
-        tool = scene.assetlibrarytools
-        obj = context.scene.assetlibrarytools
-        
-        
-        # Material import UI
-        matImportBox = layout.box()
-        matImportRow = matImportBox.row()
-        matImportRow.prop(obj, "matImport_expanded",
-            icon="TRIA_DOWN" if obj.matImport_expanded else "TRIA_RIGHT",
-            icon_only=True, emboss=False
-        )
-        matImportRow.label(text="Batch import PBR texture sets as simple materials")
-        if obj.matImport_expanded:
-            matImportBox.prop(tool, "mat_import_path")
-            matImportBox.label(text='Make sure to uncheck "Relative Path"!', icon="ERROR")
-            matImportBox.operator("alt.batchimportpbr")
-            matImportOptionsRow = matImportBox.row()
-            matImportOptionsRow.prop(obj, "matImportOptions_expanded",
-                icon="TRIA_DOWN" if obj.matImportOptions_expanded else "TRIA_RIGHT",
-                icon_only=True, emboss=False
-            )
-            matImportOptionsRow.label(text="Import options: ")
-            if obj.matImportOptions_expanded:
-                matImportOptionsRow = matImportBox.row()
-                matImportBox.label(text="Import settings:")
-                matImportBox.prop(tool, "skip_existing")
-                matImportBox.prop(tool, "tex_ignore_filter")
-                matImportBox.separator()
-                matImportBox.label(text="Material settings:")
-                matImportBox.prop(tool, "use_fake_user")
-                matImportBox.prop(tool, "use_real_displacement")
-                matImportBox.prop(tool, "add_extranodes")
-                matImportBox.prop(tool, "texture_mapping")
-                matImportBox.separator()
-                matImportBox.label(text="Import following textures into materials (if found):")
-                matImportBox.prop(tool, "import_diff")
-                matImportBox.prop(tool, "import_sss")
-                matImportBox.prop(tool, "import_met")
-                matImportBox.prop(tool, "import_spec")
-                matImportBox.prop(tool, "import_rough")
-                matImportBox.prop(tool, "import_emission")
-                matImportBox.prop(tool, "import_alpha")
-                matImportBox.prop(tool, "import_norm")
-                matImportBox.prop(tool, "import_disp")
-        
-        
-        # Model import UI
-        modelImportBox = layout.box()
-        modelImportRow = modelImportBox.row()
-        modelImportRow.prop(obj, "modelImport_expanded",
-            icon="TRIA_DOWN" if obj.modelImport_expanded else "TRIA_RIGHT",
-            icon_only=True, emboss=False
-        )
-        modelImportRow.label(text="Batch import 3D models")
-        if obj.modelImport_expanded:
-            modelImportBox.prop(tool, "model_import_path")
-            modelImportBox.label(text='Make sure to uncheck "Relative Path"!', icon="ERROR")
-            modelImportBox.operator("alt.importmodels")
-            modelImportOptionsRow = modelImportBox.row()
-            modelImportOptionsRow.prop(obj, "modelImportOptions_expanded",
-                icon="TRIA_DOWN" if obj.modelImportOptions_expanded else "TRIA_RIGHT",
-                icon_only=True, emboss=False
-            )
-            modelImportOptionsRow.label(text="Import options: ")
-            if obj.modelImportOptions_expanded:
-                modelImportOptionsRow = modelImportBox.row()
-                modelImportBox.label(text="Model options:")
-                modelImportBox.prop(tool, "hide_after_import")
-                modelImportBox.prop(tool, "move_to_new_collection_after_import")
-                modelImportBox.prop(tool, "join_new_objects")
-                modelImportBox.separator()
-                modelImportBox.label(text="Search for and import the following filetypes:")
-                modelImportBox.prop(tool, "import_fbx")
-                modelImportBox.prop(tool, "import_gltf")
-                modelImportBox.prop(tool, "import_obj")
-                modelImportBox.prop(tool, "import_x3d")
-        
-        
-        # Append from other .blend UI
-        appendBox = layout.box()
-        appendRow = appendBox.row()
-        appendRow.prop(obj, "append_expanded",
-            icon="TRIA_DOWN" if obj.append_expanded else "TRIA_RIGHT",
-            icon_only=True, emboss=False
-        )
-        appendRow.label(text="Batch append from .blend files")
-        if obj.append_expanded:
-            appendBox.prop(tool, "append_path")
-            appendBox.label(text='Make sure to uncheck "Relative Path"!', icon="ERROR")
-            appendBox.prop(tool, "append_recursive_search")
-            appendBox.prop(tool, "append_move_to_new_collection_after_import")
-            appendBox.prop(tool, "append_join_new_objects")
-            appendBox.prop(tool, "appendType")
-            if obj.appendType == 'objects':
-                appendBox.prop(tool, "deleteLights")
-                appendBox.prop(tool, "deleteCameras")
-            appendBox.operator("alt.batchappend")
-            
-            
-        # Asset browser operations UI
-        assetBrowserOpsBox = layout.box()
-        assetBrowserOpsRow = assetBrowserOpsBox.row()
-        assetBrowserOpsRow.prop(obj, "assetBrowserOpsRow_expanded",
-            icon="TRIA_DOWN" if obj.assetBrowserOpsRow_expanded else "TRIA_RIGHT",
-            icon_only=True, emboss=False
-        )
-        assetBrowserOpsRow.label(text="Asset browser operations")
-        if obj.assetBrowserOpsRow_expanded:
-            assetBrowserOpsRow = assetBrowserOpsBox.row()
-            assetBrowserOpsBox.label(text="Batch mark/unmark assets:")
-            assetBrowserOpsBox.prop(tool, "markunmark")
-            assetBrowserOpsBox.prop(tool, "assettype")
-            assetBrowserOpsBox.operator("alt.manageassets")
-            assetBrowserOpsBox.label(text="Generate asset previews:")
-            assetBrowserOpsBox.prop(tool, "previewgentype")
-            assetBrowserOpsBox.operator("alt.generateassetpreviews")
-            
-        
-        # Utility operations UI
-        utilBox = layout.box()
-        utilRow = utilBox.row()
-        utilRow.prop(obj, "utilRow_expanded",
-            icon="TRIA_DOWN" if obj.utilRow_expanded else "TRIA_RIGHT",
-            icon_only=True, emboss=False
-        )
-        utilRow.label(text="Utilities")
-        if obj.utilRow_expanded:
-            utilRow = utilBox.row()
-            utilBox.prop(tool, "deleteType")
-            utilBox.operator("alt.batchdelete")
-            utilBox.separator()
-            utilBox.label(text='Deletes based on material name, not material contents', icon="ERROR")
-            utilBox.operator("alt.simpledeldupemats")
-            utilBox.operator("alt.cleanupunusedmats")
-            utilBox.separator()
-            utilBox.prop(tool, "dispNewScale")
-            utilBox.operator("alt.changealldispscale")
-            utilBox.operator("alt.userealdispall")
-        
-        
-        #Asset snapshot UI
-        snapshotBox = layout.box()
-        snapshotRow = snapshotBox.row()
-        snapshotRow.prop(obj, "snapshotRow_expanded",
-            icon="TRIA_DOWN" if obj.snapshotRow_expanded else "TRIA_RIGHT",
-            icon_only=True, emboss=False
-        )
-        snapshotRow.label(text="Asset snapshot")
-        if obj.snapshotRow_expanded:
-            snapshotBox.label(text='Sometimes crashes. SAVE YOUR FILES', icon="ERROR")
-            snapshotBox.prop(tool, "resolution")
-            snapshotBox.operator("view3d.object_preview")
-            snapshotBox.operator("view3d.asset_snaphot_collection")
-        
-        
-        # Asset downloader UI
-        assetDownloaderBox = layout.box()
-        assetDownloaderRow = assetDownloaderBox.row()
-        assetDownloaderRow.prop(obj, "assetDownloaderRow_expanded",
-            icon="TRIA_DOWN" if obj.assetDownloaderRow_expanded else "TRIA_RIGHT",
-            icon_only=True, emboss=False
-        )
-        assetDownloaderRow.label(text="Batch asset downloader [EXPERIMENTAL]")
-        if obj.assetDownloaderRow_expanded:
-            assetDownloaderRow = assetDownloaderBox.row()
-            assetDownloaderBox.label(text='Downloads files from ambientcg.com')
-            assetDownloaderBox.prop(tool, "downloader_save_path")
-            assetDownloaderBox.label(text='Make sure to uncheck "Relative Path"!', icon="ERROR")
-            assetDownloaderBox.prop(tool, "keywordFilter")
-            assetDownloaderBox.prop(tool, "showAllDownloadAttribs")
-            assetDownloaderBox.prop(tool, "attributeFilter")
-            assetDownloaderBox.prop(tool, "extensionFilter")
-            assetDownloaderBox.prop(tool, "unZip")
-            assetDownloaderBox.prop(tool, "deleteZips")
-            assetDownloaderBox.prop(tool, "skipDuplicates")
-            assetDownloaderBox.prop(tool, "terminal")
-            assetDownloaderBox.operator("alt.assetdownloader")
-            
-        
-         # SBSAR import UI
-        sbsarImportBox = layout.box()
-        sbsarImportRow = sbsarImportBox.row()
-        sbsarImportRow.prop(obj, "sbsarImport_expanded",
-            icon="TRIA_DOWN" if obj.sbsarImport_expanded else "TRIA_RIGHT",
-            icon_only=True, emboss=False
-        )
-        sbsarImportRow.label(text="Batch import SBSAR files [EXPERIMENTAL]")
-        if obj.sbsarImport_expanded:
-            sbsarImportBox.label(text="Requires adobe substance 3D add-on for Blender", icon="ERROR")
-            sbsarImportBox.prop(tool, "sbsar_import_path")
-            sbsarImportBox.label(text='Make sure to uncheck "Relative Path"!', icon="ERROR")
-            sbsarImportBox.operator("alt.importsbsar")
-
-
-# ------------------------------------------------------------------------
 #    Registration
 # ------------------------------------------------------------------------
 
 classes = (
-    properties,
     OT_BatchImportPBR,
     OT_ImportModels,
     OT_BatchAppend,
@@ -1362,7 +1049,6 @@ classes = (
     OT_AssetSnapshotObject,
     OT_AssetDownloaderOperator,
     OT_ImportSBSAR,
-    OBJECT_PT_panel
 )
 
 def register():
@@ -1376,6 +1062,3 @@ def unregister():
     for cls in reversed(classes):
         unregister_class(cls)
     del bpy.types.Scene.assetlibrarytools
-
-if __name__ == "__main__":
-    register()
