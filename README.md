@@ -7,6 +7,31 @@
 For example i have a base albedo texture that does not have color and uses a MixFactor mixed with a RGB node to add color to its albedo.
 Plans is to extend this more than this and add AO baked textures as well as well as to seperate the plugin into its own packages to make it easier to maintain and added upon by contributers.
 
+## How does this plugin recognize textures?
+While this is planned to be customizable in a later version if i am able to get around to sorting it out. For now if you want to change this you need to do this in the core ___init__.py file from line 36 and forwards.
+
+### Diffuse
+"diffuse", "diff", "albedo", "base", "col", "color", "alb"
+### Subsurface Scattering
+"sss", "subsurface"
+### Metalness
+"metallic", "metalness", "metal", "mtl", "met"
+### Specular
+"specularity", "specular", "spec", "spc"
+### Roughness
+"roughness", "rough", "rgh", "gloss", "glossy", "glossiness"
+### Normal Map
+"normal", "nor", "nrm", "nrml", "norm"
+### Displacement
+"displacement", "displace", "disp", "dsp", "height", "heightmap", "bump", "bmp"
+### Alpha
+"alpha", "opacity", "opa"
+### Emissive
+"emissive", "emission", "emm"
+### Transmission
+"transmission", "trm"
+### Mix Factor
+"tcl", "mix", "mixfactor"
 
 # AssetLibraryTools
 
