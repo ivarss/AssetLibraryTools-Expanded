@@ -1,3 +1,9 @@
+# What is Expanded?
+I have added transmission to the PBR import system. I have also added a MixFactor for in cases where you need to use a mix of diffuse blended with something else.
+For example i have a base albedo texture that does not have color and uses a MixFactor mixed with a RGB node to add color to its albedo.
+
+Plans is to extend this more than this and add AO baked textures as well as well as to seperate the plugin into its own packages to make it easier to maintain and added upon by contributers.
+
 # AssetLibraryTools
 
 AssetLibraryTools is a free addon which aims to speed up the process of creating asset libraries with the asset browser, This addon is currently very much experimental as is the asset browser in blender.
